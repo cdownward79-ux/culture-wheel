@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CULTURE Spin Wheel</title>
+<style>
+:root{color-scheme:light dark} html,body{margin:0}
+/* Layout: single column, wheel on top, result card below; built for a phone held upright */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --fg: #16212e;
+  --muted: #5a6675;
+  --line: #d8dee6;
+  --navy: #134b7e;
+  --blue: #1f84c6;
+  --slate: #5b5b5b;
+  --mist: #e9ebee;
+  --mist-ink: #3a3f45;
+  --pointer: #16212e;
+  --font-display: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --font-body: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141c; --surface: #16202b; --fg: #eaf0f6; --muted: #9aa8b8; --line: #2a3745;
+    --pointer: #eaf0f6; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141c; --surface: #16202b; --fg: #eaf0f6; --muted: #9aa8b8; --line: #2a3745;
+  --pointer: #eaf0f6; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 32px; }
+.wrap { max-width: 520px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
+header h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); }
+
+.stage { position: relative; width: 100%; aspect-ratio: 1; max-width: 100%; touch-action: manipulation; }
+canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+.pointer { position: absolute; left: 50%; top: -2px; width: 34px; height: 30px; transform: translateX(-50%); z-index: 2; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+.pointer svg { display: block; width: 100%; height: 100%; }
+
+button.spin {
+  font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: .08em; text-transform: uppercase;
+  background: var(--navy); color: #fff; border: 0; border-radius: 6px; padding: 16px 20px; min-height: 56px; cursor: pointer; width: 100%;
+}
+button.spin:hover { background: #0f3d69; }
+button.spin:disabled { opacity: .55; cursor: default; }
+button.spin:focus-visible, canvas:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+.result { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.result .head { display: flex; align-items: center; gap: 14px; padding: 14px 16px; color: #fff; background: var(--navy); }
+.result .letter { font-family: var(--font-display); font-weight: 800; font-size: 2.4rem; line-height: 1; width: 2.2rem; text-align: center; }
+.result .word { font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; margin: 0; }
+.result .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.result .body p.label { margin: 0; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.result ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.result li { display: grid; grid-template-columns: 1.6rem 1fr; gap: 6px; font-size: 1.05rem; }
+.result li span.n { color: var(--muted); font-style: italic; }
+.result.idle .body p { margin: 0; color: var(--muted); }
+.live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+footer { color: var(--muted); font-size: .85rem; text-align: center; }
+</style>
+
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>CULTURE Spin Wheel</h1>
+    <p>Seven practices that signal and shape our culture. Spin to pick one.</p>
+  </header>
+
+  <div class="stage">
+    <div class="pointer" aria-hidden="true">
+      <svg viewBox="0 0 34 30"><polygon points="2,2 32,2 17,28" fill="var(--pointer)"/></svg>
+    </div>
+    <canvas id="wheel" tabindex="0" role="img" aria-label="Spin wheel with seven slices: C, U, L, T, U, R, E"></canvas>
+  </div>
+
+  <button class="spin" id="spinBtn" type="button">Spin</button>
+
+  <section class="result idle" id="result" aria-live="polite">
+    <div class="body"><p>Tap Spin or the wheel to land on a practice.</p></div>
+  </section>
+
+  <div class="live" id="live" aria-live="polite"></div>
+  <footer>Underpinning all seven: an "endless possibilities &amp; empathy" mindset.</footer>
+</main>
+
+<script>
+(function () {
+  var PRACTICES = [
+    { l: "C", w: "Cultivate", c: "#134b7e", ink: "#fff", s: [
+      "The company fosters a work environment where the expression of a different viewpoint is actively encouraged.",
+      "Team members can challenge ideas without fear of negative consequences." ] },
+    { l: "U", w: "Unite", c: "#1f84c6", ink: "#fff", s: [
+      "I understand how my work contributes to the team's broader goals.",
+      "My leader encourages collaboration across teams or departments." ] },
+    { l: "L", w: "Listen", c: "#5b5b5b", ink: "#fff", s: [
+      "My leader is open to ideas that differ from their own.",
+      "Diverse viewpoints are genuinely considered." ] },
+    { l: "T", w: "Transparency", c: "#e9ebee", ink: "#3a3f45", s: [
+      "I understand how and why key decisions are made.",
+      "My leader openly discusses challenges facing the team or organization." ] },
+    { l: "U", w: "Urgency", c: "#134b7e", ink: "#fff", s: [
+      "My leader makes decisions that are followed by timely actions.",
+      "My leader ensures that unnecessary delays and bureaucracy are minimized." ] },
+    { l: "R", w: "Respect", c: "#1f84c6", ink: "#fff", s: [
+      "The company creates an environment where everyone feels valued and included.",
+      "Differences in background, perspective, and experience are respected." ] },
+    { l: "E", w: "Engage", c: "#5b5b5b", ink: "#fff", s: [
+      "I feel included in discussions and initiatives.",
+      "My ideas and input are actively sought." ] }
+  ];
+  var N = PRACTICES.length, SLICE = 360 / N;
+  var canvas = document.getElementById("wheel"), ctx = canvas.getContext("2d");
+  var btn = document.getElementById("spinBtn"), resultEl = document.getElementById("result"), live = document.getElementById("live");
+  var angle = 0, spinning = false, size = 0;
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function rad(d) { return d * Math.PI / 180; }
+
+  function draw() {
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth;
+    if (!cssW) return;
+    if (size !== cssW * dpr) { size = cssW * dpr; canvas.width = size; canvas.height = size; }
+    var cx = size / 2, cy = size / 2, R = size / 2 - 4 * dpr, hole = R * 0.2;
+    ctx.clearRect(0, 0, size, size);
+    for (var i = 0; i < N; i++) {
+      // Slice i spans [i*SLICE, (i+1)*SLICE] clockwise from 12 o'clock at angle 0
+      var a0 = rad(angle + i * SLICE - 90), a1 = rad(angle + (i + 1) * SLICE - 90);
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a0, a1); ctx.closePath();
+      ctx.fillStyle = PRACTICES[i].c; ctx.fill();
+      ctx.lineWidth = 2 * dpr; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+      var mid = rad(angle + (i + 0.5) * SLICE - 90);
+      ctx.save();
+      ctx.translate(cx + Math.cos(mid) * R * 0.66, cy + Math.sin(mid) * R * 0.66);
+      ctx.rotate(mid + Math.PI / 2);
+      ctx.fillStyle = PRACTICES[i].ink;
+      ctx.font = "800 " + Math.round(R * 0.2) + "px 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(PRACTICES[i].l, 0, 0);
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, hole, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.lineWidth = 2 * dpr; ctx.strokeStyle = "#d8dee6"; ctx.stroke();
+  }
+
+  function showResult(i) {
+    var p = PRACTICES[i];
+    resultEl.className = "result";
+    resultEl.innerHTML = "";
+    var head = document.createElement("div");
+    head.className = "head"; head.style.background = p.c === "#e9ebee" ? "#5b5b5b" : p.c;
+    head.innerHTML = '<span class="letter"></span><h2 class="word"></h2>';
+    head.querySelector(".letter").textContent = p.l;
+    head.querySelector(".word").textContent = p.w;
+    var body = document.createElement("div"); body.className = "body";
+    var label = document.createElement("p"); label.className = "label"; label.textContent = "What good looks like";
+    var ol = document.createElement("ol");
+    var roman = ["i.", "ii."];
+    p.s.forEach(function (t, k) {
+      var li = document.createElement("li");
+      var n = document.createElement("span"); n.className = "n"; n.textContent = roman[k];
+      var s = document.createElement("span"); s.textContent = t;
+      li.appendChild(n); li.appendChild(s); ol.appendChild(li);
+    });
+    body.appendChild(label); body.appendChild(ol);
+    resultEl.appendChild(head); resultEl.appendChild(body);
+    live.textContent = "Landed on " + p.w;
+  }
+
+  function spin() {
+    if (spinning) return;
+    spinning = true; btn.disabled = true; btn.textContent = "Spinning…";
+    // Pick the winner first, then work out the angle that puts it under the pointer
+    var winner = Math.floor(Math.random() * N);
+    var jitter = (Math.random() - 0.5) * SLICE * 0.6;            // stay inside the slice
+    var target = ((-(winner + 0.5) * SLICE + jitter) % 360 + 360) % 360;
+    var start = angle % 360;
+    var travel = ((target - start) % 360 + 360) % 360 + 360 * (5 + Math.floor(Math.random() * 4));
+    var dur = reduce ? 700 : 5200, t0 = null;
+    function frame(ts) {
+      if (t0 === null) t0 = ts;
+      var k = Math.min((ts - t0) / dur, 1);
+      var eased = 1 - Math.pow(1 - k, 4);                          // slows toward the end
+      angle = start + travel * eased;
+      draw();
+      if (k < 1) { requestAnimationFrame(frame); }
+      else {
+        angle = target; draw(); spinning = false; btn.disabled = false; btn.textContent = "Spin again";
+        showResult(winner);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  btn.addEventListener("click", spin);
+  canvas.addEventListener("click", spin);
+  canvas.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spin(); } });
+  window.addEventListener("resize", draw);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  draw();
+})();
+</script>
+</body>
+</html>
